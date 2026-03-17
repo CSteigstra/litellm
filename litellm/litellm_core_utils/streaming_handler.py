@@ -2205,11 +2205,12 @@ class CustomStreamWrapper:
         original_status_code = _normalize_status_code(e)
 
         # Raise non-retriable client errors directly (skip fallback).
-        # Exception: 429 (rate-limit) IS retriable/transient — allow it
-        # through so the Router can switch to a different model group.
-        if mapped_status_code is not None and 400 <= mapped_status_code < 500 and mapped_status_code != 429:
+        # These are retriable because cross-provider fallbacks use
+        # different credentials, permissions, and model catalogs.
+        _retriable = {401, 403, 404, 408, 429}
+        if mapped_status_code is not None and 400 <= mapped_status_code < 500 and mapped_status_code not in _retriable:
             raise mapped_exception
-        if original_status_code is not None and 400 <= original_status_code < 500 and original_status_code != 429:
+        if original_status_code is not None and 400 <= original_status_code < 500 and original_status_code not in _retriable:
             raise mapped_exception
 
         raise MidStreamFallbackError(
