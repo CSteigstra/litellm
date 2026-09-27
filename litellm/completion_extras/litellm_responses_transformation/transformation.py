@@ -1091,6 +1091,17 @@ class OpenAiResponsesToChatCompletionStreamIterator(BaseModelResponseIterator):
 
             finish_reason = "tool_calls" if has_function_calls else "stop"
 
+            # Carry the provider's usage on the terminal chunk. Without it the
+            # stream wrapper estimates usage from the visible text and drops
+            # reasoning tokens (backport of upstream's response.completed fix).
+            usage = None
+            if response_data and response_data.get("usage"):
+                from litellm.responses.utils import ResponseAPILoggingUtils
+
+                usage = ResponseAPILoggingUtils._transform_response_api_usage_to_chat_usage(
+                    response_data.get("usage")
+                )
+
             return ModelResponseStream(
                 choices=[
                     StreamingChoices(
@@ -1098,7 +1109,8 @@ class OpenAiResponsesToChatCompletionStreamIterator(BaseModelResponseIterator):
                         delta=Delta(content=""),
                         finish_reason=finish_reason,
                     )
-                ]
+                ],
+                usage=usage,
             )
         else:
             pass

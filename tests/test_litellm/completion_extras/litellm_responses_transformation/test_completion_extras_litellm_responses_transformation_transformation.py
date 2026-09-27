@@ -654,6 +654,50 @@ def test_response_completed_emits_is_finished():
     assert result.choices[0].finish_reason == "stop", "response.completed should emit finish_reason='stop'"
 
 
+def test_response_completed_carries_provider_usage_with_reasoning_tokens():
+    """
+    The terminal chunk must carry the provider's usage. Otherwise the stream
+    wrapper estimates usage from the visible text and loses reasoning tokens.
+    """
+    from litellm.completion_extras.litellm_responses_transformation.transformation import (
+        OpenAiResponsesToChatCompletionStreamIterator,
+    )
+
+    iterator = OpenAiResponsesToChatCompletionStreamIterator(streaming_response=None, sync_stream=True)
+
+    chunk = {
+        "type": "response.completed",
+        "response": {
+            "output": [],
+            "usage": {
+                "input_tokens": 120,
+                "output_tokens": 303,
+                "total_tokens": 423,
+                "output_tokens_details": {"reasoning_tokens": 190},
+            },
+        },
+    }
+
+    result = iterator.chunk_parser(chunk)
+
+    assert result.usage is not None
+    assert result.usage.prompt_tokens == 120
+    assert result.usage.completion_tokens == 303
+    assert result.usage.completion_tokens_details.reasoning_tokens == 190
+
+
+def test_response_completed_without_usage_leaves_usage_unset():
+    from litellm.completion_extras.litellm_responses_transformation.transformation import (
+        OpenAiResponsesToChatCompletionStreamIterator,
+    )
+
+    iterator = OpenAiResponsesToChatCompletionStreamIterator(streaming_response=None, sync_stream=True)
+
+    result = iterator.chunk_parser({"type": "response.completed", "response": {"output": []}})
+
+    assert getattr(result, "usage", None) is None
+
+
 def test_response_completed_with_function_calls_emits_tool_calls_finish_reason():
     """
     Test that response.completed with function_call items in output emits finish_reason='tool_calls'.
