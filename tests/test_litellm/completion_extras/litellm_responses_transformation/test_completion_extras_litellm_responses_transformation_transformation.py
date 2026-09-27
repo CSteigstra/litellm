@@ -208,6 +208,34 @@ def test_convert_chat_completion_messages_to_responses_api_tool_result_with_text
     print("✓ Tool result with text correctly transformed to use input_text for Responses API format")
 
 
+def test_convert_chat_completion_messages_to_responses_api_file_input():
+    """A chat-format file part becomes an input_file, not input_text holding its repr."""
+    from litellm.completion_extras.litellm_responses_transformation.transformation import (
+        LiteLLMResponsesTransformationHandler,
+    )
+
+    handler = LiteLLMResponsesTransformationHandler()
+    pdf = "data:application/pdf;base64,JVBERi0xLjQK"
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "file", "file": {"file_data": pdf, "filename": "document.pdf"}},
+                {"type": "file", "file": {"file_id": "file-abc123"}},
+                {"type": "text", "text": "What is the reference?"},
+            ],
+        }
+    ]
+
+    response, _ = handler.convert_chat_completion_messages_to_responses_api(messages)
+
+    assert response[0]["content"] == [
+        {"type": "input_file", "file_data": pdf, "filename": "document.pdf"},
+        {"type": "input_file", "file_id": "file-abc123"},
+        {"type": "input_text", "text": "What is the reference?"},
+    ]
+
+
 def test_openai_responses_chunk_parser_reasoning_summary():
     from litellm.completion_extras.litellm_responses_transformation.transformation import (
         OpenAiResponsesToChatCompletionStreamIterator,

@@ -629,6 +629,22 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
                             converted = {"type": "input_image", **item}
                             result.append(converted)
                             verbose_logger.debug(f"Chat provider:   image -> {converted}")
+                        elif item_type == "file":
+                            # Chat-format file part -> Responses input_file
+                            # (backport of upstream's mapping; before this it
+                            # fell through to input_text with the dict repr).
+                            file_value = item.get("file")
+                            converted = {"type": "input_file"}
+                            if isinstance(file_value, dict):
+                                converted.update(
+                                    {
+                                        key: file_value[key]
+                                        for key in ("file_id", "file_data", "filename")
+                                        if key in file_value
+                                    }
+                                )
+                            result.append(converted)
+                            verbose_logger.debug("Chat provider:   file -> input_file")
                         elif item_type in [
                             "input_text",
                             "input_image",
