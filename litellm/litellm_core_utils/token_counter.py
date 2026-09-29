@@ -386,7 +386,7 @@ def token_counter(
         return 0
 
     verbose_logger.debug(
-        f"messages in token_counter: {messages}, text in token_counter: {text}"
+        "messages in token_counter: %s, text in token_counter: %s", messages, text
     )
     if text is not None and messages is not None:
         raise ValueError("text and messages cannot both be set")

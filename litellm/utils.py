@@ -3920,7 +3920,7 @@ def get_optional_params(  # noqa: PLR0915
             f"\nLiteLLM completion() model= {model}; provider = {custom_llm_provider}"
         )
         verbose_logger.debug(
-            f"\nLiteLLM: Params passed to completion() {passed_params}"
+            "\nLiteLLM: Params passed to completion() %s", passed_params
         )
         verbose_logger.debug(
             f"\nLiteLLM: Non-Default params passed to completion() {non_default_params}"

@@ -600,7 +600,9 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
         elif isinstance(content, list):
             result = []
             for i, item in enumerate(content):
-                verbose_logger.debug(f"Chat provider: Processing content item {i}: {type(item)} = {item}")
+                verbose_logger.debug(
+                    "Chat provider: Processing content item %s: %s = %s", i, type(item), item
+                )
                 if isinstance(item, str):
                     converted = self._convert_content_str_to_input_text(item, role)
                     result.append(converted)
@@ -662,7 +664,7 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
                             converted = self._convert_content_str_to_input_text(str(item.get("text", item)), role)
                             result.append(converted)
                             verbose_logger.debug(f"Chat provider:   unknown({original_type}) -> {converted}")
-            verbose_logger.debug(f"Chat provider: Final converted content: {result}")
+            verbose_logger.debug("Chat provider: Final converted content: %s", result)
             return result
         else:
             result = [self._convert_content_str_to_input_text(str(content), role)]
