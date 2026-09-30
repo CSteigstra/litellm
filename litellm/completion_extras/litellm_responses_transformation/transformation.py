@@ -612,6 +612,8 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
                     original_type = item.get("type")
                     if original_type == "text":
                         converted = self._convert_content_str_to_input_text(item.get("text", ""), role)
+                        if item.get("prompt_cache_breakpoint") is not None:
+                            converted["prompt_cache_breakpoint"] = item["prompt_cache_breakpoint"]
                         result.append(converted)
                         verbose_logger.debug(f"Chat provider:   text -> {converted}")
                     elif original_type == "image_url":
