@@ -309,6 +309,49 @@ def test_chunk_parser_enum_output_text_delta_produces_text():
     assert choice.finish_reason is None
 
 
+def _streamed_text(chunks: List[dict]) -> str:
+    from litellm.completion_extras.litellm_responses_transformation.transformation import (
+        OpenAiResponsesToChatCompletionStreamIterator,
+    )
+
+    iterator = OpenAiResponsesToChatCompletionStreamIterator(streaming_response=None, sync_stream=True)
+    return "".join(iterator.chunk_parser(chunk).choices[0].delta.content or "" for chunk in chunks)
+
+
+def test_chunk_parser_output_text_done_without_delta_emits_text_once():
+    """A short answer sent only in output_text.done (no deltas) must not be lost."""
+    from litellm.types.llms.openai import ResponsesAPIStreamEvents
+
+    chunks = [
+        {"type": "response.created"},
+        {"type": ResponsesAPIStreamEvents.OUTPUT_TEXT_DONE, "item_id": "msg_1", "content_index": 0, "text": "2610"},
+        {"type": "response.output_item.done", "item": {"type": "message", "content": []}},
+        {"type": "response.completed"},
+    ]
+
+    assert _streamed_text(chunks) == "2610"
+
+
+def test_chunk_parser_output_text_done_after_deltas_does_not_duplicate_text():
+    chunks = [
+        {"type": "response.output_text.delta", "item_id": "msg_1", "content_index": 0, "delta": "26"},
+        {"type": "response.output_text.delta", "item_id": "msg_1", "content_index": 0, "delta": "10"},
+        {"type": "response.output_text.done", "item_id": "msg_1", "content_index": 0, "text": "2610"},
+        {"type": "response.completed"},
+    ]
+
+    assert _streamed_text(chunks) == "2610"
+
+
+def test_chunk_parser_output_text_done_with_empty_text_emits_nothing():
+    chunks = [
+        {"type": "response.output_text.done", "item_id": "msg_1", "content_index": 0, "text": ""},
+        {"type": "response.completed"},
+    ]
+
+    assert _streamed_text(chunks) == ""
+
+
 def test_chunk_parser_function_call_added_produces_tool_use():
     from litellm.completion_extras.litellm_responses_transformation.transformation import (
         OpenAiResponsesToChatCompletionStreamIterator,

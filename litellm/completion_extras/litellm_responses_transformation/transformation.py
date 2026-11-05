@@ -15,6 +15,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     Union,
     cast,
@@ -37,7 +38,12 @@ from litellm.types.llms.openai import (
     ResponsesAPIOptionalRequestParams,
     ResponsesAPIStreamEvents,
 )
-from litellm.types.utils import GenericStreamingChunk, ModelResponseStream
+from litellm.types.utils import (
+    Delta,
+    GenericStreamingChunk,
+    ModelResponseStream,
+    StreamingChoices,
+)
 
 if TYPE_CHECKING:
     from openai.types.responses import ResponseInputImageParam
@@ -884,6 +890,8 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
 class OpenAiResponsesToChatCompletionStreamIterator(BaseModelResponseIterator):
     def __init__(self, streaming_response, sync_stream: bool, json_mode: Optional[bool] = False):
         super().__init__(streaming_response, sync_stream, json_mode)
+        # (item_id, content_index) of output text parts that streamed at least one delta.
+        self._text_parts_with_delta: Set[Tuple[Optional[str], Optional[int]]] = set()
 
     def _handle_string_chunk(
         self, str_line: Union[str, "BaseModel"]
@@ -1159,4 +1167,43 @@ class OpenAiResponsesToChatCompletionStreamIterator(BaseModelResponseIterator):
             ModelResponseStream: OpenAI-formatted streaming chunk
         """
         verbose_logger.debug(f"Chat provider: transform_streaming_response called with chunk: {chunk}")
+        if isinstance(chunk, BaseModel):
+            chunk = chunk.model_dump()
+        recovered_text = self._text_sent_only_in_output_text_done(chunk)
+        if recovered_text is not None:
+            return ModelResponseStream(
+                choices=[
+                    StreamingChoices(
+                        index=0,
+                        delta=Delta(content=recovered_text),
+                        finish_reason=None,
+                    )
+                ]
+            )
         return OpenAiResponsesToChatCompletionStreamIterator.translate_responses_chunk_to_openai_stream(chunk)
+
+    def _text_sent_only_in_output_text_done(self, chunk: dict) -> Optional[str]:
+        """
+        Return the text of an ``output_text.done`` event whose text part streamed no deltas.
+
+        Some models (e.g. Azure GPT-6.1) occasionally send a short answer only as
+        ``response.output_text.done`` with the full ``text`` and no preceding
+        ``response.output_text.delta`` events. Chat text is built from deltas, so
+        that answer would be lost. Parts that did stream deltas return None, so
+        already-streamed text is never emitted twice.
+        """
+        event_type = chunk.get("type")
+        if isinstance(event_type, ResponsesAPIStreamEvents):
+            event_type = event_type.value
+        if event_type not in ("response.output_text.delta", "response.output_text.done"):
+            return None
+
+        part = (chunk.get("item_id"), chunk.get("content_index"))
+        if event_type == "response.output_text.delta":
+            self._text_parts_with_delta.add(part)
+            return None
+
+        text = chunk.get("text")
+        if text and part not in self._text_parts_with_delta:
+            return text
+        return None
